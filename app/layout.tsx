@@ -2,9 +2,10 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import Providers from "./providers";
+import Header from "@/components/header";
 
 export const metadata: Metadata = {
-  title: "IFG Product & Inventory Management",
+  title: "Storage Management",
   description: "Product and inventory management portal",
 };
 
@@ -17,7 +18,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Suspense fallback={null}>
-          <Providers>{children}</Providers>
+          <Providers>
+            <Header />
+            <main className="mx-auto max-w-7xl p-6">{children}</main>
+          </Providers>
         </Suspense>
       </body>
     </html>
