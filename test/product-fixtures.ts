@@ -1,0 +1,31 @@
+import type { Product } from "@/types/products";
+
+export const productFixture: Product = {
+  id: 1,
+  title: "Test headphones",
+  description: "A product used by automated tests.",
+  category: "electronics",
+  price: 49.99,
+  discountPercentage: 0,
+  rating: 4.5,
+  stock: 12,
+  tags: ["audio"],
+  brand: "Test brand",
+  sku: "TEST-001",
+  weight: 1,
+  dimensions: { width: 10, height: 10, depth: 10 },
+  warrantyInformation: "1 year",
+  shippingInformation: "Ships in 2 days",
+  availabilityStatus: "In Stock",
+  reviews: [],
+  returnPolicy: "30 days",
+  minimumOrderQuantity: 1,
+  meta: {
+    createdAt: "2025-01-01",
+    updatedAt: "2025-01-01",
+    barcode: "123456789",
+    qrCode: "https://example.test/qr",
+  },
+  images: [],
+  thumbnail: "https://example.test/product.png",
+};
