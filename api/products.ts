@@ -46,6 +46,25 @@ export async function getProducts(
     query.set("order", order);
   }
 
+  if (search?.trim() && category) {
+    query.set("limit", "0");
+    query.set("skip", "0");
+    query.set("q", search.trim());
+    const response = await request<ProductResponse>(
+      `${API_URL}/products/search?${query.toString()}`,
+    );
+    const products = response.products.filter(
+      (product) => product.category === category,
+    );
+
+    return {
+      products: products.slice(skip, skip + limit),
+      total: products.length,
+      skip,
+      limit,
+    };
+  }
+
   let endpoint = "/products";
 
   if (search?.trim()) {

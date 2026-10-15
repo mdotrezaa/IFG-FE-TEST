@@ -127,14 +127,21 @@ export function useUpdateProduct() {
       }
     },
 
-    onSettled: (_data, _error, { id }) => {
-      queryClient.invalidateQueries({
-        queryKey: productKeys.lists(),
-      });
+    onSuccess: (updatedProduct, { id }) => {
+      queryClient.setQueriesData<ProductResponse>(
+        { queryKey: productKeys.lists() },
+        (current) => {
+          if (!current) return current;
 
-      queryClient.invalidateQueries({
-        queryKey: productKeys.detail(id),
-      });
+          return {
+            ...current,
+            products: current.products.map((product) =>
+              product.id === id ? { ...product, ...updatedProduct } : product,
+            ),
+          };
+        },
+      );
+      queryClient.setQueryData<Product>(productKeys.detail(id), updatedProduct);
     },
   });
 }
@@ -159,10 +166,10 @@ export function useDeleteProduct() {
 
         queryClient.setQueryData<ProductResponse>(key, {
           ...data,
-          products: data.products.filter((product: { id: number; }) => product.id !== id),
-          total: data.total - (
-            data.products.some((product: { id: number; }) => product.id === id) ? 1 : 0
-          ),
+          products: data.products.filter((product) => product.id !== id),
+          total:
+            data.total -
+            (data.products.some((product) => product.id === id) ? 1 : 0),
         });
       });
 
@@ -175,9 +182,11 @@ export function useDeleteProduct() {
       });
     },
 
-    onSettled: () =>
-      queryClient.invalidateQueries({
-        queryKey: productKeys.lists(),
-      }),
+    onSuccess: (_deletedProduct, id) => {
+      queryClient.removeQueries({
+        queryKey: productKeys.detail(id),
+        exact: true,
+      });
+    },
   });
 }
