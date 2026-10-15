@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import {
@@ -20,6 +21,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import Pagination from "@/components/pagination";
 import type { Product } from "@/types/products";
 import ProductListSkeleton from "@/components/product-skeleton";
+import Modal from "@/components/modal";
 
 export default function HomePage() {
   const dispatch = useAppDispatch();
@@ -27,6 +29,7 @@ export default function HomePage() {
   const view = useAppSelector((state) => state.ui.view);
   const debouncedSearch = useDebounce(filters.search);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deletingProduct, setDeletingProduct] = useState<Product | null>(null);
   const [editValues, setEditValues] = useState({
     title: "",
     price: "",
@@ -106,27 +109,42 @@ export default function HomePage() {
   }
 
   function removeProduct(product: Product) {
-    if (window.confirm(`Delete "${product.title}" from the inventory?`)) {
-      deleteProduct.mutate(product.id, {
-        onSuccess: () => {
-          if (data?.products.length === 1 && filters.page > 1) {
-            dispatch(setPage(filters.page - 1));
-          }
-        },
-      });
-    }
+    setDeletingProduct(product);
+    deleteProduct.reset();
+  }
+
+  function confirmDeleteProduct() {
+    if (!deletingProduct) return;
+
+    deleteProduct.mutate(deletingProduct.id, {
+      onSuccess: () => {
+        if (data?.products.length === 1 && filters.page > 1) {
+          dispatch(setPage(filters.page - 1));
+        }
+
+        setDeletingProduct(null);
+      },
+    });
   }
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-medium text-blue-700">Inventory</p>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-          Product directory
-        </h1>
-        <p className="text-sm text-gray-500">
-          Search, filter, and manage your product inventory.
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <p className="text-sm font-medium text-blue-700">Inventory</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+            Product directory
+          </h1>
+          <p className="text-sm text-gray-500">
+            Search, filter, and manage your product inventory.
+          </p>
+        </div>
+        <Link
+          href="/products/new"
+          className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-blue-800"
+        >
+          Add product
+        </Link>
       </div>
 
       <div>
@@ -368,29 +386,7 @@ export default function HomePage() {
           </table>
         </div>
       ) : null}
-      {data && (
-        <div className="flex flex-col gap-3 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-          <p>
-            {data.total} {data.total === 1 ? "product" : "products"} found
-          </p>
-          <label className="flex items-center gap-2">
-            <span>Rows per page</span>
-            <select
-              value={filters.limit}
-              onChange={(event) =>
-                dispatch(setLimit(Number(event.target.value)))
-              }
-              className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-gray-700"
-            >
-              {[10, 20, 50].map((limit) => (
-                <option key={limit} value={limit}>
-                  {limit}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-      )}
+
       {data && totalPages > 1 && (
         <Pagination
           isFetching={isFetching}
@@ -398,108 +394,101 @@ export default function HomePage() {
           total={data.total}
           limit={data.limit}
           onPageChange={(page) => dispatch(setPage(page))}
+          onPageLimitChange={(limit) => dispatch(setLimit(limit))}
         />
       )}
+      <Modal
+        isOpen={!!deletingProduct}
+        title="Delete product"
+        description={`Are you sure you want to delete "${deletingProduct?.title}" from the inventory?`}
+        confirmText="Delete"
+        variant="danger"
+        isLoading={deleteProduct.isPending}
+        onClose={() => setDeletingProduct(null)}
+        onConfirm={confirmDeleteProduct}
+      />
+      <Modal
+        isOpen={!!editingProduct}
+        title="Edit product"
+        description="Changes update the directory immediately and sync with the API."
+        confirmText="Save changes"
+        cancelText="Cancel"
+        isLoading={updateProduct.isPending}
+        onClose={() => setEditingProduct(null)}
+        onConfirm={() => {
+          const form = document.getElementById(
+            "edit-product-form",
+          ) as HTMLFormElement | null;
 
-      {editingProduct && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (
-              event.target === event.currentTarget &&
-              !updateProduct.isPending
-            ) {
-              setEditingProduct(null);
-            }
-          }}
+          form?.requestSubmit();
+        }}
+      >
+        <form
+          id="edit-product-form"
+          onSubmit={saveProduct}
+          className="space-y-4"
         >
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edit-product-title"
-            className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl"
-          >
-            <div className="mb-5">
-              <h2
-                id="edit-product-title"
-                className="text-lg font-semibold text-gray-900"
-              >
-                Edit product
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Changes update the directory immediately and sync with the API.
-              </p>
-            </div>
-            <form onSubmit={saveProduct} className="space-y-4">
-              <label className="block space-y-1.5 text-sm font-medium text-gray-700">
-                Product name
-                <input
-                  required
-                  value={editValues.title}
-                  onChange={(event) =>
-                    setEditValues({ ...editValues, title: event.target.value })
-                  }
-                  className="h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-4">
-                <label className="block space-y-1.5 text-sm font-medium text-gray-700">
-                  Price
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={editValues.price}
-                    onChange={(event) =>
-                      setEditValues({
-                        ...editValues,
-                        price: event.target.value,
-                      })
-                    }
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-                </label>
-                <label className="block space-y-1.5 text-sm font-medium text-gray-700">
-                  Stock
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="1"
-                    value={editValues.stock}
-                    onChange={(event) =>
-                      setEditValues({
-                        ...editValues,
-                        stock: event.target.value,
-                      })
-                    }
-                    className="h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-                  />
-                </label>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  disabled={updateProduct.isPending}
-                  onClick={() => setEditingProduct(null)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={updateProduct.isPending}
-                  className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {updateProduct.isPending ? "Saving…" : "Save changes"}
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
+          <label className="block space-y-1.5 text-sm font-medium text-gray-700">
+            Product name
+            <input
+              required
+              minLength={1}
+              value={editValues.title}
+              onChange={(event) =>
+                setEditValues({
+                  ...editValues,
+                  title: event.target.value,
+                })
+              }
+              className="h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+          </label>
+
+          <div className="grid grid-cols-2 gap-4">
+            <label className="block space-y-1.5 text-sm font-medium text-gray-700">
+              Price
+              <input
+                required
+                type="number"
+                min="0"
+                step="0.01"
+                value={editValues.price}
+                onChange={(event) =>
+                  setEditValues({
+                    ...editValues,
+                    price: event.target.value,
+                  })
+                }
+                className="h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+
+            <label className="block space-y-1.5 text-sm font-medium text-gray-700">
+              Stock
+              <input
+                required
+                type="number"
+                min="0"
+                step="1"
+                value={editValues.stock}
+                onChange={(event) =>
+                  setEditValues({
+                    ...editValues,
+                    stock: event.target.value,
+                  })
+                }
+                className="h-10 w-full rounded-lg border border-gray-300 px-3 font-normal outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+            </label>
+          </div>
+
+          {updateProduct.isError && (
+            <p role="alert" className="text-sm text-red-600">
+              {updateProduct.error.message}
+            </p>
+          )}
+        </form>
+      </Modal>
     </div>
   );
 }

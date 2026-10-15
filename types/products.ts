@@ -75,4 +75,17 @@ export type CreateProductInput = {
   brand: string;
   discountPercentage?: number;
   sku?: string;
+  weight?: number;
+  dimensions?: ProductDimensions;
+  variations?: ProductVariation[];
+  requiresFragileHandling?: boolean;
+  hazardousDisclaimer?: boolean;
+  specialShippingNotes?: string;
+};
+
+export type ProductVariation = {
+  color: string;
+  size: string;
+  skuCode: string;
+  extraPrice: number;
 };
