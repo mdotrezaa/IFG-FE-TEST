@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Product Inventory
 
-## Getting Started
+A Next.js product inventory application built with TypeScript. It supports product search, filtering, sorting, pagination, product updates and deletion, and a multi-step product creation form with draft recovery.
 
-First, run the development server:
+## Submission links
+
+- **Public GitHub repository:** [mdotrezaa/IFG-FE-TEST](https://github.com/mdotrezaa/IFG-FE-TEST)
+- **Vercel production deployment:** [https://ifg-fe-test.vercel.app/](https://ifg-fe-test.vercel.app/)
+
+## Getting started
+
+Requirements: Node.js and npm.
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the Next.js development server |
+| `npm run build` | Create a production build |
+| `npm run start` | Serve the production build |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run the Vitest test suite |
+| `npm run test:coverage` | Run Vitest with coverage thresholds |
 
-## Learn More
+## Architecture
 
-To learn more about Next.js, take a look at the following resources:
+- **Redux Toolkit** stores client-owned UI state (search and list filters, layout, filter drawer) and the product form draft.
+- **TanStack Query** owns remote server state: product/category queries, request lifecycle, cache, and mutations.
+- **React Hook Form** owns the in-progress form, field registration, validation lifecycle, and dynamic variation array. Yup defines the form schema.
+- **DummyJSON** is the API used for product and category requests. Product creation posts to `https://dummyjson.com/products/add`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Technical rationale
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+#### 1. Race condition handling during rapid search
 
-## Deploy on Vercel
+The search input updates the Redux filter immediately, while `useDebounce` waits 300 ms after the last keystroke before passing the value to `useProducts`. Its effect clears the previous timer whenever the value changes, so rapid typing does not start a request for every keystroke.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The debounced search value is part of the TanStack Query key, along with the other request parameters. Results are therefore cached per parameter set, rather than competing to overwrite one shared result entry. `keepPreviousData` keeps the prior result visible while the new key is loading, avoiding a jarring empty state.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Requests are **not explicitly aborted**: the query function does not pass TanStack Query's `AbortSignal` to `fetch`. The debounce and query-key isolation prevent stale responses from replacing data for the current key, but an obsolete network request may still finish in the background. During a key transition, the previous data can intentionally remain visible until the new result arrives.
+
+#### 2. State distribution boundaries
+
+- **Redux Toolkit** holds shared client state that is useful outside one component or should survive navigation within the app: list filters and view preferences, form draft state, and toast state.
+- **TanStack Query** holds state that comes from the API. It handles caching and request/mutation status so server data is not duplicated as a second Redux copy.
+- **React Hook Form** holds transient, field-level form edits, validation errors, and submission state. These are form concerns; keeping them in the form avoids dispatching Redux actions for every keystroke.
+
+The form draft is the deliberate exception: it is copied to Redux and local storage for recovery, while React Hook Form remains the active editing and validation model.
+
+#### 3. Re-render optimization for SKU variations
+
+The variation list uses React Hook Form's `useFieldArray`. Inputs are registered with `form.register` rather than controlled through component state, keeping normal keystrokes out of a parent-level state update. Each rendered row uses the stable `field.id` generated by `useFieldArray` as its React key, and rows are added or removed through the field-array helpers.
+
+The implementation does not add row-level `React.memo` or custom subscriptions. Its optimization is based on React Hook Form's registered/uncontrolled inputs and stable field-array identities, not on claiming that every form-state change is isolated from the page component.
+
+#### 4. Optimistic update rollback
+
+Before an update or delete, the mutation cancels outstanding product queries and snapshots the affected cached list queries (and, for an update, the product detail query). It then applies the optimistic cache change so the UI can respond immediately.
+
+If the request fails, `onError` restores those snapshots to their original query keys. If the update succeeds, the returned product replaces the optimistic version in the relevant caches. For deletion, the optimistic item removal is retained on success and its detail cache is removed. Mutation errors are also surfaced through the application's query/mutation error notifications.
+
+## Testing
+
+Vitest runs in a jsdom environment with React Testing Library. Mock Service Worker intercepts network requests in tests.
+
+Coverage includes:
+
+- Yup validation for SKU format, price and discount bounds, and fragile-handling requirements.
+- Product draft helpers and Redux reducers for draft persistence, filters, and view state.
+- Optimistic update rollback after a failed API response.
+- Multi-step product creation, including the POST request to DummyJSON.
+
+`npm run test:coverage` applies greater-than-80% thresholds to the product form schema, draft helpers, and UI/draft Redux slices.
