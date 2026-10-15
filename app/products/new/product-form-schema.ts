@@ -42,7 +42,16 @@ export const productFormSchema: yup.ObjectSchema<ProductDraft> = yup
           .object({
             color: yup.string().trim().required("Color is required"),
             size: yup.string().trim().required("Size is required"),
-            skuCode: yup.string().trim().defined(),
+            skuCode: yup
+              .string()
+              .trim()
+              .defined()
+              .test(
+                "sku-format",
+                "SKU must be 3–30 characters using letters, numbers, hyphens, or underscores",
+                (value) =>
+                  value === "" || /^[A-Za-z0-9_-]{3,30}$/.test(value),
+              ),
             extraPrice: optionalNumber("Variation price")
               .required("Additional price is required")
               .min(0, "Additional price cannot be negative"),
