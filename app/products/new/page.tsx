@@ -14,6 +14,7 @@ import { useCreateProduct, useCategories } from "@/hooks/use-products";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearDraft, saveDraft, type ProductDraft } from "@/store/draft-slice";
 import { defaultProductDraft, productFormSchema } from "./product-form-schema";
+import Modal from "@/components/modal";
 
 const DRAFT_STORAGE_KEY = "product-form-draft";
 
@@ -123,6 +124,9 @@ export default function NewProductPage() {
   const [step, setStep] = useState(0);
   const [draftReady, setDraftReady] = useState(false);
   const [draftError, setDraftError] = useState<string | null>(null);
+  const [showResumeModal, setShowResumeModal] = useState(false);
+  const [savedDraftToResume, setSavedDraftToResume] =
+    useState<ProductDraft | null>(null);
   const [complete, setComplete] = useState(false);
   const checkedDraft = useRef(false);
   const stepRef = useRef(step);
@@ -184,21 +188,10 @@ export default function NewProductPage() {
     }
 
     if (savedDraft) {
-      if (window.confirm("Resume saved product draft?")) {
-        const restoredDraft = restoreNumericDraftValues(savedDraft);
-        form.reset(restoredDraft);
-        setStep(restoredDraft.currentStep);
-        dispatch(saveDraft(restoredDraft));
-      } else {
-        dispatch(clearDraft());
-        try {
-          localStorage.removeItem(DRAFT_STORAGE_KEY);
-        } catch {
-          setDraftError(
-            "The saved draft could not be removed from this device.",
-          );
-        }
-      }
+      setSavedDraftToResume(savedDraft);
+      setShowResumeModal(true);
+    } else {
+      setDraftReady(true);
     }
 
     setDraftReady(true);
@@ -219,7 +212,34 @@ export default function NewProductPage() {
     setStep(nextStep);
     persistDraft(nextStep);
   }
+  function handleResumeDraft() {
+    if (!savedDraftToResume) return;
 
+    const restoredDraft = restoreNumericDraftValues(savedDraftToResume);
+
+    form.reset(restoredDraft);
+    setStep(restoredDraft.currentStep);
+    dispatch(saveDraft(restoredDraft));
+
+    setShowResumeModal(false);
+    setSavedDraftToResume(null);
+    setDraftReady(true);
+  }
+
+  function handleDiscardDraft() {
+    dispatch(clearDraft());
+
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setDraftError(null);
+    } catch {
+      setDraftError("The saved draft could not be removed from this device.");
+    }
+
+    setShowResumeModal(false);
+    setSavedDraftToResume(null);
+    setDraftReady(true);
+  }
   function goToStep(targetStep: number) {
     setStep(targetStep);
     persistDraft(targetStep);
@@ -846,6 +866,19 @@ export default function NewProductPage() {
           )}
         </div>
       </form>
+      <Modal
+        isOpen={showResumeModal}
+        title="Resume saved product draft?"
+        description="A saved product draft was found. Would you like to continue where you left off or discard it and start fresh?"
+        confirmText="Resume draft"
+        cancelText="Discard draft"
+        onConfirm={handleResumeDraft}
+        onClose={handleDiscardDraft}
+      >
+        <p className="text-sm text-gray-600">
+          Your saved product information will be restored if you resume.
+        </p>
+      </Modal>
     </div>
   );
 }

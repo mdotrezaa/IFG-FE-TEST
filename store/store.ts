@@ -1,12 +1,14 @@
 import { configureStore } from "@reduxjs/toolkit";
 import uiReducer from "@/store/ui-slice";
 import draftReducer from "@/store/draft-slice";
+import toastReducer from "@/store/toast-slice";
 
 export const makeStore = () =>
   configureStore({
     reducer: {
       ui: uiReducer,
       draft: draftReducer,
+      toast: toastReducer,
     },
   });
 

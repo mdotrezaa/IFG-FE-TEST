@@ -18,6 +18,8 @@ import type {
   ProductQueryParams,
   ProductResponse,
 } from "@/types/products";
+import { showToast } from "@/store/toast-slice";
+import { useAppDispatch } from "@/store/hooks";
 
 export const productKeys = {
   all: ["products"] as const,
@@ -55,18 +57,27 @@ export function useProduct(id: number) {
 
 export function useCreateProduct() {
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
 
   return useMutation({
     mutationFn: (product: CreateProductInput) => createProduct(product),
-    onSuccess: () =>
+    onSuccess: () => {
+      dispatch(
+        showToast({
+          kind: "success",
+          message: "Product created successfully.",
+        }),
+      );
       queryClient.invalidateQueries({
         queryKey: productKeys.lists(),
-      }),
+      });
+    },
   });
 }
 
 export function useUpdateProduct() {
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
 
   return useMutation({
     mutationFn: ({
@@ -128,6 +139,12 @@ export function useUpdateProduct() {
     },
 
     onSuccess: (updatedProduct, { id }) => {
+      dispatch(
+        showToast({
+          kind: "success",
+          message: "Product updated successfully.",
+        }),
+      );
       queryClient.setQueriesData<ProductResponse>(
         { queryKey: productKeys.lists() },
         (current) => {
@@ -148,6 +165,7 @@ export function useUpdateProduct() {
 
 export function useDeleteProduct() {
   const queryClient = useQueryClient();
+  const dispatch = useAppDispatch();
 
   return useMutation({
     mutationFn: (id: number) => deleteProduct(id),
@@ -183,6 +201,12 @@ export function useDeleteProduct() {
     },
 
     onSuccess: (_deletedProduct, id) => {
+      dispatch(
+        showToast({
+          kind: "success",
+          message: "Product deleted successfully.",
+        }),
+      );
       queryClient.removeQueries({
         queryKey: productKeys.detail(id),
         exact: true,
